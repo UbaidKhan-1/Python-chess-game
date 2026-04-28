@@ -10,7 +10,7 @@ clock = pg.time.Clock()
 
 #   GLOBAL VARIABLES
 
-mode = ""
+mode = "human"
 tilesize = screen.get_width()//8
 voffset = screen.get_height()/2 - tilesize*4
 turn = 1
@@ -33,6 +33,7 @@ all_possible_moves = {}
 selection = None
 var_king_pos= None
 const_king_pos = None
+enpasantable = None
 king_in_check = None
 #_______________________
 
@@ -86,26 +87,17 @@ font2 = pg.font.Font(None, index_text_size)
 endfont = pg.font.Font(None, 100)
 endfont2 = pg.font.Font(None, 50)
 
-# A DICTIONARY THAT HOLDS FUNCTIONS THAT DEFINE THE BEHAVIOUR OF PIECES
-move_functions = {
+# BITMAPS
 
-6: (lambda x, y, pcode, row, col, state: (row-2== y and x == col and pcode == 0 and (state[row-1][col] == 0 if row-2 == y else True)) or (row-1 == y and x == col and pcode == 0) or (row-1 == y and (col -1 == x or col+1 == x) and pcode!=0) if row==6  else (row-1 == y and x == col and pcode == 0) or (row-1 == y and (col -1 == x or col+1 == x) and pcode!=0)),
+piecebitmaps = {}
+for row in range(1,7):
+	piecebitmaps[str(i)] = "".join([0 for i in range(64)])
+	piecebitmaps[str(-i)] = "".join([0 for i in range(64)])
 
--6: (lambda x, y, pcode, row, col, state:(row+2== y and x == col and pcode == 0 and (state[row+1][col] == 0 if row+2 == y else True)) or (row+1 == y and x == col and pcode == 0) or (row+1== y and (col -1 == x or col+1 == x) and pcode!=0) if row == 1 else (row+1 == y and x == col and pcode == 0) or (row+1 == y and (col -1 == x or col+1 == x) and pcode!=0)),
+print(piecebitmaps = {})
+	
+		
 
-5: (lambda x, y, pcode, row, col, state: (col == x or y == row) and check_path(x,y, row, col, state, straight = abs(y-row) == 0 or abs(x-col) == 0)),
-
-4: (lambda x, y, pcode, row, col, state: abs(x-col) + abs(y-row) == 3 and (abs(x-col) > 0 and abs(y-row) > 0)),
-
-3: (lambda x, y, pcode, row, col, state: abs(x-col) == abs(y-row) and check_path(x,y, row, col, state, diagonal = abs(row-y) == abs(col-x))),
-
-2: (lambda x, y, pcode, row, col, state: ((col == x or y == row) or abs(x-col) == abs(y-row)) and check_path(x,y, row, col, state, straight = abs(y-row) == 0 or abs(x-col) == 0, diagonal= abs(row-y) == abs(col-x))),
-
-1: (lambda x, y, pcode, row, col, state: (x == col + 1 or x == col - 1 or x == col) and (y == row+1 or y == row or y == row-1) or ((x == col+2 and (abs(state[row][col+3]) == 5 if col+3 <=7 else False) and not right_w_rook_moved or x == col-2 and (abs(state[row][col-4]) == 5 if col-4 >=0 else False) and not left_w_rook_moved) and (y == row) and not white_king_moved and check_path(x,y, row, col, state, straight = abs(y-row) == 0 or abs(x-col) == 0) and not castle_obstruction((row, col), y, x))),
-
--1: (lambda x, y, pcode, row, col, state: (x == col + 1 or x == col - 1 or x == col) and (y == row+1 or y == row or y == row-1)or ((x == col-2 and (abs(state[row][col-4]) == 5 if col-4 >=0 else False) and not left_B_rook_moved or x == col+2 and (abs(state[row][col+3]) == 5 if col+3 <=7 else False) and not right_B_rook_moved) and (y == row) and not black_king_moved and check_path(x,y, row, col, state, straight = abs(y-row) == 0 or abs(x-col) == 0) and not castle_obstruction((row, col), y, x)))
-
-}
 #_______________________________________
 
 
@@ -144,7 +136,8 @@ def draw_chess_board(gamestate):
 				screen.blit(piece, piece_rect)	
 	add_index_numbers()					
 				
-												
+				
+																				
 def handle_click(mx, my):
 	global gamestate,selection,possible_moves, turn, move_count, king_in_check, const_king_pos, var_king_pos, white_king_moved,black_king_moved, right_w_rook_moved,left_w_rook_moved,right_B_rook_moved,left_B_rook_moved
 
@@ -292,39 +285,21 @@ def kingincheck(state, turn):
 					
 def calculate_possible_moves(row, col, piece):
 	moves = []
-	gstate = gamestate
-	for y in range(8):
-		for x in range(8):
-			pcode = gstate[y][x]
-			if (x,y) != (col, row) and pcode/turn <= 0:
-				if move_functions[piece if piece == -6 or piece == -1 else abs(piece)](x,y,pcode,row,col,gstate):
-					castled = False
-					if abs(piece) == 1 and abs(x-col) > 1 and y == row:
-						original_pcode2 = gstate[y][x -2 if x<col else x+1]
-						original_pcode3 = gstate[y][x +1 if x<col else x-1]
-						castled = True
-						gstate[row][col] = 0
-						gstate[y][x] = piece
-						gstate[y][x -2 if x<col else x+1] = 0
-						gstate[y][x +1 if x<col else x-1] = 5*turn
-						if not kingincheck(gstate, turn):
-							moves.append((y,x))
-					else:
-						gstate[row][col] = 0
-						gstate[y][x] = piece
-						if not kingincheck(gstate, turn):
-							moves.append((y,x))
-							
-					gstate[row][col] = piece
-					gstate[y][x] = pcode
-					if castled:
-						gstate[y][x -2 if x<col else x+1] = original_pcode2
-						gstate[y][x +1 if x<col else x-1] = original_pcode3
-					
+	if piece== 6:
+		y = row-1
+		moves.append((y, x))
+		moves.append((y, x-1))
+		moves.append((y, x+1))
+		if row == 6:
+			moves.append((row-2, x))
+		
+		
+		
 	return moves
 	
 
 def make_move(state, move, selected_piece, check_promotion = False):
+	global enpasantable
 	castled = False
 	row, col = move[0][0], move[0][1]
 	x, y = move[1][1], move[1][0]
@@ -339,6 +314,8 @@ def make_move(state, move, selected_piece, check_promotion = False):
 		
 		
 	elif abs(selected_piece) == 6 and (y == 0 or y == 7) and check_promotion:
+			if abs(y - row) == 2:
+				enpasantable = (y, x)
 			temp_state[y][x] = promote()
 			temp_state[row][col] = 0
 					
@@ -617,7 +594,7 @@ def minimax(state, depth, alpha, beta, maximizing_player):
 
 def make_bot_move(state):
     best_move = None
-    depth = 2
+    depth = 3
     
     if turn == 1: # If bot is playing White (Maximizing)
         best_val = -inf
