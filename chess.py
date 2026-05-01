@@ -1,6 +1,7 @@
 import pygame as pg
 from time import sleep
 from math import inf
+from pickle import load
 from evaluation_matrices import evalmats
 pg.init()
 pg.mixer.init()
@@ -16,14 +17,6 @@ voffset = screen.get_height()/2 - tilesize*4
 turn = 1
 coloumns = ["a","b","c","d","e","f","g","h"]
 
-PIECE_VALUES = {
-    1: 900,  
-    2: 90,  
-    3: 30, 
-    4: 30,  
-    5: 50,   
-    6: 10  
-}
 possible_moves = []	# global variable to keep track of possible moves of the selected piece
 all_possible_moves = {}
 
@@ -57,7 +50,6 @@ gamestate = [
               [5, 4, 3, 2, 1, 3, 4, 5]
 ]
 
-
 # _________________________________
 
 #   Loading Sound effects
@@ -89,6 +81,9 @@ endfont2 = pg.font.Font(None, 50)
 
 #_______________________________________
 
+# Loading Attack Masks
+with open("attack_masks.pkl", "rb") as f:
+    data = load(f)
 
 #  FUNCTIONS			
 	
@@ -273,18 +268,16 @@ def kingincheck(state, turn):
 			
 					
 def calculate_possible_moves(row, col, piece):
-	moves = []
-	if piece== 6:
-		y = row-1
-		x = col
-		moves.append((y, x))
-		if 0<=row<8 and 0<=col<8:
-			if gamestate[row][col]/turn < 0:
-				moves.append((y, x-1))
-				moves.append((y, x+1))
-		if row == 6:
-			moves.append((row-2, x))
+	moves = attack_masks[piece][(row,col)]
+	#filtering pseudo pawn captures
+	if abs(piece) == 6:
+		for i in range(len(moves)):
+			y, x = moves[i]
+			if abs(y-row) == abs(x-col):
+				if gamestate[y][x] / turn >= 0:
+					moves.pop(i)
 	return moves
+					
 	
 
 def make_move(state, move, selected_piece, check_promotion = False):
