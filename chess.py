@@ -85,18 +85,7 @@ movetextx,movetexty = 20, 200
 font = pg.font.Font(None, moves_text_size)
 font2 = pg.font.Font(None, index_text_size)
 endfont = pg.font.Font(None, 100)
-endfont2 = pg.font.Font(None, 50)
-
-# BITMAPS
-
-piecebitmaps = {}
-for row in range(1,7):
-	piecebitmaps[str(i)] = "".join([0 for i in range(64)])
-	piecebitmaps[str(-i)] = "".join([0 for i in range(64)])
-
-print(piecebitmaps = {})
-	
-		
+endfont2 = pg.font.Font(None, 50)	
 
 #_______________________________________
 
@@ -287,14 +276,14 @@ def calculate_possible_moves(row, col, piece):
 	moves = []
 	if piece== 6:
 		y = row-1
+		x = col
 		moves.append((y, x))
-		moves.append((y, x-1))
-		moves.append((y, x+1))
+		if 0<=row<8 and 0<=col<8:
+			if gamestate[row][col]/turn < 0:
+				moves.append((y, x-1))
+				moves.append((y, x+1))
 		if row == 6:
 			moves.append((row-2, x))
-		
-		
-		
 	return moves
 	
 
