@@ -11,7 +11,7 @@ clock = pg.time.Clock()
 
 #   GLOBAL VARIABLES
 
-mode = "human"
+mode = "robot"
 tilesize = screen.get_width()//8
 voffset = screen.get_height()/2 - tilesize*4
 turn = 1
@@ -83,7 +83,7 @@ endfont2 = pg.font.Font(None, 50)
 
 # Loading Attack Masks
 with open("attack_masks.pkl", "rb") as f:
-    data = load(f)
+    attack_masks = load(f)
 
 #  FUNCTIONS			
 	
@@ -123,7 +123,7 @@ def draw_chess_board(gamestate):
 				
 																				
 def handle_click(mx, my):
-	global gamestate,selection,possible_moves, turn, move_count, king_in_check, const_king_pos, var_king_pos, white_king_moved,black_king_moved, right_w_rook_moved,left_w_rook_moved,right_B_rook_moved,left_B_rook_moved
+	global gamestate,selection,possible_moves, turn, king_in_check, const_king_pos, var_king_pos, white_king_moved,black_king_moved, right_w_rook_moved,left_w_rook_moved,right_B_rook_moved,left_B_rook_moved
 
 	row = int((my - voffset) / tilesize)
 	col = int(mx / tilesize)
@@ -196,6 +196,8 @@ def castle_obstruction(selection, row, col):
 		dx = (col-selection[1])/abs(col-selection[1])
 		for i in range(abs(col-selection[1])):
 			tempx,tempy = int(selection[1] + dx*(i+1)), selection[0]
+			if gamestate[tempy][tempx] != 0:
+				return True
 			state = [r[:] for r in gamestate]
 			state[tempy][tempx] = state[selection[0]][selection[1]]
 			state[selection[0]][selection[1]] = 0
@@ -268,14 +270,92 @@ def kingincheck(state, turn):
 			
 					
 def calculate_possible_moves(row, col, piece):
-	moves = attack_masks[piece][(row,col)]
+	Psuedo_moves = attack_masks[piece if piece == -6 or piece == -1 else abs(piece)][(row,col)]
+	
+	moves = []
+	captures = []
+	blockers = [] # own pieces blocking movement
+	
+	# filtering all moves that lie on own pieces and saving captures
+	for y, x in Psuedo_moves:
+		piece_side = gamestate[y][x]*turn
+		if  piece_side <= 0:
+			moves.append((y,x))
+			if piece_side < 0:
+				captures.append((y, x))
+		else:
+			blockers.append((y,x))
+			
 	#filtering pseudo pawn captures
 	if abs(piece) == 6:
-		for i in range(len(moves)):
-			y, x = moves[i]
-			if abs(y-row) == abs(x-col):
-				if gamestate[y][x] / turn >= 0:
-					moves.pop(i)
+		for y, x in Psuedo_moves:
+			pcode = gamestate[y][x]
+			if (y, x) in moves:
+				if x == col and pcode != 0:
+					moves.pop(moves.index((y, x)))
+				elif abs(y-row) == abs(x-col) and pcode == 0:
+					moves.pop(moves.index((y, x)))
+						
+	# adding castling for kings
+	elif piece == 1:
+		if not white_king_moved:
+			if not right_w_rook_moved and not castle_obstruction((row, col), 7, 6):
+				moves.append((7, 6))
+			if not left_w_rook_moved and not castle_obstruction((row, col), 7, 2):
+				moves.append((7, 2))
+				
+	elif piece == -1:
+		if not black_king_moved:
+			if not right_B_rook_moved and not castle_obstruction((row, col), 0, 6):
+				moves.append((0, 6))
+			if not left_B_rook_moved and not castle_obstruction((row, col), 0, 2):
+				moves.append((0, 2))
+				
+	elif abs(piece) != 4: # if piece is sliding
+	
+		blocked_paths = {}#contains the blocked directions
+		
+		for y, x in blockers:
+			dx = x-col
+			dy = y-row
+			dist = max(abs(dx), abs(dy))
+			dir = (dy//abs(dy) if dy != 0 else 0, dx//abs(dx) if dx != 0 else 0)
+			if dir in blocked_paths:
+				if blocked_paths[dir] > dist:
+						blocked_paths[dir] = dist
+			else:
+				blocked_paths[dir] = dist
+			
+		for y, x in captures:
+			dx = x-col
+			dy = y-row
+			dir = (dy//abs(dy) if dy != 0 else 0, dx//abs(dx) if dx != 0 else 0)
+			dist = max(abs(dx), abs(dy)) + 1#offseting the blocker one step further because its a capturable piece
+			if dir in blocked_paths:
+				if blocked_paths[dir] > dist:
+						blocked_paths[dir] = dist
+			else:
+				blocked_paths[dir] = dist
+
+# Removing blocked squares from possible moves
+		for y, x in Psuedo_moves:
+			dx = x-col
+			dy = y-row
+			dir = (dy//abs(dy) if dy != 0 else 0, dx//abs(dx) if dx != 0 else 0)
+			dist = max(abs(dx), abs(dy))
+			if dir in blocked_paths.keys():
+				if dist >= blocked_paths[dir]:
+					if (y, x) in moves:
+						moves.remove((y, x))
+							
+	# filtering moves that cause the king to be in check or leave it in check
+	filtered_moves = []
+	for move in moves:
+		state,_= make_move(gamestate, ((row,col),move), piece)
+		if not kingincheck(state, turn):
+			filtered_moves.append(move)
+	moves = filtered_moves
+	
 	return moves
 					
 	
@@ -339,32 +419,6 @@ def promote():
 					
 	return selected_piece
 	
-
-def check_path(x, y, row, col, state, straight = False, diagonal = False):
-	is_possible = False
-	if straight:
-		is_possible = True
-		deltax = (x-col)/abs(x-col if x-col!=0 else 1) 
-		deltay =  (y-row)/abs(y-row if y-row !=0 else 1)
-		displacement = max(abs(y-row),abs(x-col))
-		if displacement > 1:
-			for i in range(displacement-1):
-				if state[int(row + (i+1)*deltay)][int(col+(i+1)*deltax)] != 0:
-					is_possible = False
-						
-	if diagonal:
-		is_possible = True
-		deltax = (x-col)/abs(x-col if x-col!=0 else 1) 
-		deltay =  (y-row)/abs(y-row if y-row !=0 else 1)
-		displacement = max(abs(y-row),abs(x-col))
-		if displacement > 1:
-			for i in range(displacement-1):
-				if state[int(row + (i+1)*deltay)][int(col+(i+1)*deltax)] != 0:
-					is_possible =  False
-
-	return is_possible
-	
-
 
 def show_moves(xoffset = 0):
 	doffset = (screen.get_width()-len(move_record)*100)
@@ -576,7 +630,7 @@ def minimax(state, depth, alpha, beta, maximizing_player):
 
 def make_bot_move(state):
     best_move = None
-    depth = 3
+    depth = 4
     
     if turn == 1: # If bot is playing White (Maximizing)
         best_val = -inf
@@ -639,8 +693,6 @@ while running:
 			y = move[1][0] * tilesize + voffset
 			selection = (col, row)
 			handle_click(x, y)
-					
-		
 		
 					
 	pg.display.update()
