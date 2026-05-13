@@ -667,13 +667,13 @@ while running:
 	for event in events:
 		if event.type == pg.QUIT:
 			pg.quit()
-		if event.type == pg.FINGERDOWN:
+		if event.type == pg.FINGERDOWN or event.type == pg.MOUSEBUTTONDOWN:
 			if turn == 1:
 				handle_click(mx, my)
 			elif turn == -1 and mode != "robot":
 				handle_click(mx, my)
 			touchpos = mx
-		if event.type == pg.FINGERMOTION:
+		if event.type == pg.FINGERMOTION or event.type == pg.MOUSEMOTION:
 			if movetexty +moves_text_size+10> my > movetexty-10:
 				newtouchpos = mx
 				moveoffset=touchpos - newtouchpos
