@@ -11,7 +11,7 @@ clock = pg.time.Clock()
 
 #   GLOBAL VARIABLES
 
-mode = "robot"
+mode = "human"
 tilesize = screen.get_width()//8
 voffset = screen.get_height()/2 - tilesize*4
 turn = 1
@@ -411,7 +411,7 @@ def promote():
 		mx ,my = pg.mouse.get_pos()
 		events = pg.event.get()
 		for event in events:
-			if event.type == pg.FINGERDOWN:
+			if event.type == pg.FINGERDOWN or event.type == pg.MOUSEBUTTONDOWN:
 				if my > y and my < y + height:
 					if mx > left and mx < left + width:
 						selected_piece = codes[(mx - left -10) // tilesize]
@@ -463,6 +463,7 @@ def reset():
 	var_king_pos= None
 	const_king_pos = None
 	king_in_check = None
+	enpasantable = None
 	#_______________________
 	
 	# Keep these False
